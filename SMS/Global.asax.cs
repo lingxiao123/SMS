@@ -46,29 +46,34 @@ namespace SMS
         public void timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             string nowTime = DateTime.Now.ToString("yyyy-MM-dd");
-            //获取所有当天要发送的发货短信
-            string sql =string.Format("select * from DispatchList where dDate='{0}'",nowTime);
-            DataTable dt = DBAccessSystem.QueryDataTable(sql); 
-            string[] arr = new string[11];
-            string clientphone = "";            
-            for (int i = 0; i < dt.Rows.Count; i++)
+            //因为发货日期与审核日期可能存在不一致的情况，所以检索前三天的发货日期
+            DateTime beforeThreeDay = DateTime.Now.AddDays(-2);
+            for (int k = 0; k <=2; k++)
             {
-
-                #region 判断是否已发送(已发送跳出当前循环) 
-                string sql_exits =string.Format("select * from SendLog where DLCode='{0}' and Status=1", dt.Rows[i]["cDLCode"].ToString());
-                DataTable dt_exits = DBAccess.QueryDataTable(sql_exits);
-                if (dt_exits.Rows.Count > 0)
+                //获取所有当天要发送的发货短信
+                string sql = string.Format("select * from DispatchList where dDate='{0}'", beforeThreeDay.AddDays(k).ToString("yyyy-MM-dd"));
+                DataTable dt = DBAccessSystem.QueryDataTable(sql);
+                string[] arr = new string[10];
+                string clientphone = "";
+                for (int i = 0; i < dt.Rows.Count; i++)
                 {
-                    continue;
-                }
-                #endregion
-                #region 判断是否审核 未审核不发送
-                if(dt.Rows[i]["cVerifier"].ToString()==""|| dt.Rows[i]["cVerifier"].ToString()==null){
-                    continue;
-                }
-                #endregion
-                arr[0] = dt.Rows[i]["cCusName"].ToString();//客户名称
-                #region 获取客户手机号码                
+
+                    #region 判断是否已发送(已发送跳出当前循环) 
+                    string sql_exits = string.Format("select * from SendLog where DLCode='{0}' and Status=1", dt.Rows[i]["cDLCode"].ToString());
+                    DataTable dt_exits = DBAccess.QueryDataTable(sql_exits);
+                    if (dt_exits.Rows.Count > 0)
+                    {
+                        continue;
+                    }
+                    #endregion
+                    #region 判断是否审核 未审核不发送
+                    if (dt.Rows[i]["cVerifier"].ToString() == "" || dt.Rows[i]["cVerifier"].ToString() == null)
+                    {
+                        continue;
+                    }
+                    #endregion
+                    arr[0] = dt.Rows[i]["cCusName"].ToString();//客户名称
+                    #region 获取客户手机号码                
                     string sql_cusphone = string.Format("select cCusPhone from Customer where cCusCode='{0}'", dt.Rows[i]["cCusCode"].ToString());
                     DataTable dt_cusphone = DBAccessSystem.QueryDataTable(sql_cusphone);
                     if (dt_cusphone.Rows.Count > 0)
@@ -78,73 +83,90 @@ namespace SMS
                             clientphone = dt_cusphone.Rows[0]["cCusPhone"].ToString().Trim();
                         }
                     }
-                    if (clientphone=="")
+                    if (clientphone == "")
                     {
                         continue;
                     }
-                #endregion
-                arr[1] =Convert.ToDateTime(dt.Rows[i]["dDate"].ToString()).ToString("yyyy-MM-dd");// 发货日期
-                arr[2] = dt.Rows[i]["cShipAddress"].ToString();//发货地址
-                #region 获取存货名称
-                string invname = "";
-                string sql_invname = string.Format("select cInvName from SO_SODetails where cInvCode in (select cInvCode from DispatchLists where DLID={0})",dt.Rows[i]["DLID"]);
-                DataTable dt_invname = DBAccessSystem.QueryDataTable(sql_invname);
-                if (dt_invname.Rows.Count > 0)
-                {
-                    for (int j = 0; j < dt_invname.Rows.Count; j++)
+                    #endregion
+                    arr[1] = Convert.ToDateTime(dt.Rows[i]["dDate"].ToString()).ToString("yyyy-MM-dd");// 发货日期
+                    arr[2] = dt.Rows[i]["cShipAddress"].ToString();//发货地址
+                    #region 获取存货名称
+                    string invname = "";
+                    string invcount = "";
+                    string model = "";
+                    string unit = "";
+                    string sql_invname = string.Format("select cInvName,cInvCode,iQuantity from DispatchLists where DLID={0}", dt.Rows[i]["DLID"]);
+                    DataTable dt_invname = DBAccessSystem.QueryDataTable(sql_invname);
+                    if (dt_invname.Rows.Count > 0)
                     {
-                        if(j>1)
+                        for (int j = 0; j < dt_invname.Rows.Count; j++)
                         {
-                            break;
+                            if (j > 0)
+                            {
+                                break;
+                            }
+                            invname += dt_invname.Rows[j]["cInvName"].ToString() + ",";
+                            invcount = dt_invname.Rows[j]["iQuantity"].ToString();
+                            string sql_model = string.Format("select cInvStd,cComUnitCode from Inventory where cInvCode='{0}'", dt_invname.Rows[j]["cInvCode"].ToString());
+                            DataTable dt_model = DBAccessSystem.QueryDataTable(sql_model);
+                            if (dt_model.Rows.Count > 0)
+                            {
+                                model = dt_model.Rows[0]["cInvStd"].ToString();
+                                string sql_unit = string.Format("select cComUnitName from ComputationUnit where cComunitCode='{0}'",dt_model.Rows[0]["cComUnitCode"].ToString());
+                                DataTable dt_unit = DBAccessSystem.QueryDataTable(sql_unit);
+                                if (dt_unit.Rows.Count>0)
+                                {
+                                    unit = dt_unit.Rows[0]["cComUnitName"].ToString();
+                                }
+                            }
                         }
-                        invname += dt_invname.Rows[j]["cInvName"].ToString() + ",";
+                        invname = invname.Substring(0, invname.LastIndexOf(','));
+                        //invname = invname+","+"规格型号为"+model+invcount+unit+ "等";
+                        invname = invcount + unit + "规格型号为" + model + "的" + invname + "等";
+                        
                     }
-                    invname = invname.Substring(0,invname.LastIndexOf(','));
-                    invname = invname + "等";
-                }
-                #endregion
-                arr[3] = invname;// 存货名称
-                arr[4] = "";//规格型号
-                arr[5] = "";//主计量
-                arr[6] = "";//数量
-                arr[7] = dt.Rows[i]["cDefine3"].ToString();//物流单号
-                arr[8] = dt.Rows[i]["cDefine8"].ToString();//总件数
-                #region 获取业务员名称和联系电话
-                string personname = "";
-                string personphone = "";
-                string sql_person = string.Format("select cPersonName,cPersonPhone from Person where cPersonCode='{0}'", dt.Rows[i]["cPersonCode"].ToString());
-                DataTable dt_person = DBAccessSystem.QueryDataTable(sql_person);
-                if (dt_person.Rows.Count>0)
-                {
-                    for (int j = 0; j < dt_person.Rows.Count; j++)
+                    #endregion
+                    arr[3] = invname;// 存货名称
+                    arr[4] = "";//规格型号
+                    arr[5] = "";//主计量
+                    arr[6] = dt.Rows[i]["cDefine3"].ToString();//物流单号
+                    arr[7] = dt.Rows[i]["cDefine8"].ToString();//总件数
+                    #region 获取业务员名称和联系电话
+                    string personname = "";
+                    string personphone = "";
+                    string sql_person = string.Format("select cPersonName,cPersonPhone from Person where cPersonCode='{0}'", dt.Rows[i]["cPersonCode"].ToString());
+                    DataTable dt_person = DBAccessSystem.QueryDataTable(sql_person);
+                    if (dt_person.Rows.Count > 0)
                     {
-                        personname = dt_person.Rows[0]["cPersonName"].ToString();
-                        personphone = dt_person.Rows[0]["cPersonPhone"].ToString();
+                        for (int j = 0; j < dt_person.Rows.Count; j++)
+                        {
+                            personname = dt_person.Rows[0]["cPersonName"].ToString();
+                            personphone = dt_person.Rows[0]["cPersonPhone"].ToString();
+                        }
                     }
-                }
-                #endregion
-                arr[9] = personname;//业务员
-                arr[10] = personphone;//业务员联系电话
-                bool flag = SendMsg.SendMsgs(clientphone,arr);
-                #region 添加发送日志                
+                    #endregion
+                    arr[8] = personname;//业务员
+                    arr[9] = personphone;//业务员联系电话
+                    bool flag = SendMsg.SendMsgs(clientphone, arr);
+                    #region 添加发送日志                
                     if (flag)
                     {
-                        string sql_log = string.Format("insert into SendLog values('{0}','{1}','{2}',{3},'{4}')", dt.Rows[i]["cCusName"].ToString(), clientphone, dt.Rows[i]["cDLCode"].ToString(),1,DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                        string sql_log = string.Format("insert into SendLog values('{0}','{1}','{2}',{3},'{4}')", dt.Rows[i]["cCusName"].ToString(), clientphone, dt.Rows[i]["cDLCode"].ToString(), 1, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                         int count = DBAccess.ExecTransSql(sql_log);
                     }
                     else
                     {
-                        string logexits = string.Format("select * from SendLog where DLCode='{0}' and AddTime like '%{1}%'", dt.Rows[i]["cDLCode"].ToString(),nowTime);
+                        string logexits = string.Format("select * from SendLog where DLCode='{0}' and AddTime like '%{1}%'", dt.Rows[i]["cDLCode"].ToString(), nowTime);
                         DataTable dt_logexits = DBAccess.QueryDataTable(logexits);
-                        if (dt_logexits.Rows.Count==0)
+                        if (dt_logexits.Rows.Count == 0)
                         {
                             string sql_log = string.Format("insert into SendLog values('{0}','{1}','{2}',{3},'{4}')", dt.Rows[i]["cCusName"].ToString(), clientphone, dt.Rows[i]["cDLCode"].ToString(), 0, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                             int count = DBAccess.ExecTransSql(sql_log);
-                        }                       
+                        }
                     }
-                #endregion
+                    #endregion
+                }
             }
-
         }
      }
 }

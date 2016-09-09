@@ -17,7 +17,7 @@ namespace SMS.Utility
             Dictionary<string, object> retData = null;
             if (isInit)
             {
-                retData = api.SendTemplateSMS(cusphone, "111500", arr);
+                retData = api.SendTemplateSMS(cusphone, "115846", arr);
             }
             foreach (var item in retData)
             {

@@ -23,8 +23,20 @@ namespace SMS.SendLog
         private void BindGrid()
         {
             // 1.设置总项数（特别注意：数据库分页一定要设置总记录数RecordCount）
-            Grid1.RecordCount = GetTotalCount();
-            string sql = "select * from SendLog";
+            string dlcode = txtDLCode.Text.Trim();
+            string datetime = dateTime.Text.Trim();
+            string where = "";
+            if (dlcode != "" && dlcode != null)
+            {
+                where += " and DLCode like '%" + dlcode + "%'";
+            }
+            if (datetime != "" && datetime != null)
+            {
+                where += " and AddTime like'%" + datetime + "%'";
+            }
+            string sql = string.Format("select * from SendLog where 1=1 {0}", where);
+
+            Grid1.RecordCount = GetTotalCount(sql);
             // 2.获取当前分页数据
             DataTable table = GetPagedDataTable(sql);
             // 3.绑定到Grid
@@ -36,10 +48,10 @@ namespace SMS.SendLog
         /// 模拟返回总项数
         /// </summary>
         /// <returns></returns>
-        private int GetTotalCount()
+        private int GetTotalCount(string sql)
         {
             //return DataSourceUtil.GetDataTable2().Rows.Count;
-            string sql = "select * from SendLog";
+            //string sql = "select * from SendLog";
             DataTable dt = DBAccess.QueryDataTable(sql);
             return dt.Rows.Count;
         }
@@ -108,22 +120,7 @@ namespace SMS.SendLog
 
         protected void btnSerach_Click(object sender, EventArgs e)
         {
-            string dlcode = txtDLCode.Text.Trim();
-            string datetime = dateTime.Text.Trim();
-            string where = "";           
-            if (dlcode!=""&&dlcode!=null)
-            {
-                where += " and DLCode like '%" + dlcode+"%'";
-            }
-            if (datetime != ""&&datetime!=null)
-            {
-                where += " and AddTime like'%" + datetime+"%'";
-            }
-            string sql = string.Format("select * from SendLog where 1=1 {0}",where);
-            DataTable dt = GetPagedDataTable(sql);
-            // 3.绑定到Grid
-            Grid1.DataSource = dt;
-            Grid1.DataBind();
+            BindGrid();
         }
     }
 }
